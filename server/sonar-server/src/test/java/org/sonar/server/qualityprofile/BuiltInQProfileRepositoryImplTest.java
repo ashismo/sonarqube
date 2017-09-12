@@ -26,11 +26,9 @@ import java.util.Random;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-import org.sonar.api.profiles.ProfileDefinition;
-import org.sonar.api.profiles.RulesProfile;
 import org.sonar.api.resources.Language;
 import org.sonar.api.resources.Languages;
-import org.sonar.api.utils.ValidationMessages;
+import org.sonar.api.server.profile.BuiltInQualityProfilesDefinition;
 import org.sonar.server.language.LanguageTesting;
 
 import static java.util.Arrays.asList;
@@ -84,28 +82,6 @@ public class BuiltInQProfileRepositoryImplTest {
   }
 
   @Test
-  public void initialize_throws_IAE_if_profileDefinition_creates_RulesProfile_with_null_name() {
-    DummyProfileDefinition definition = new DummyProfileDefinition("foo", null, false);
-    BuiltInQProfileRepository underTest = new BuiltInQProfileRepositoryImpl(new Languages(), definition);
-
-    expectedException.expect(IllegalArgumentException.class);
-    expectedException.expectMessage("Profile created by Definition " + definition + " can't have a blank name");
-
-    underTest.initialize();
-  }
-
-  @Test
-  public void initialize_throws_IAE_if_profileDefinition_creates_RulesProfile_with_empty_name() {
-    DummyProfileDefinition definition = new DummyProfileDefinition("foo", "", false);
-    BuiltInQProfileRepository underTest = new BuiltInQProfileRepositoryImpl(new Languages(), definition);
-
-    expectedException.expect(IllegalArgumentException.class);
-    expectedException.expectMessage("Profile created by Definition " + definition + " can't have a blank name");
-
-    underTest.initialize();
-  }
-
-  @Test
   public void initialize_makes_single_profile_of_a_language_default_even_if_not_flagged_as_so() {
     BuiltInQProfileRepository underTest = new BuiltInQProfileRepositoryImpl(new Languages(FOO_LANGUAGE), new DummyProfileDefinition("foo", "foo1", false));
 
@@ -134,7 +110,7 @@ public class BuiltInQProfileRepositoryImplTest {
     Collections.shuffle(definitions);
     String firstName = definitions.get(0).getName();
     String secondName = definitions.get(1).getName();
-    BuiltInQProfileRepository underTest = new BuiltInQProfileRepositoryImpl(new Languages(FOO_LANGUAGE), definitions.toArray(new ProfileDefinition[0]));
+    BuiltInQProfileRepository underTest = new BuiltInQProfileRepositoryImpl(new Languages(FOO_LANGUAGE), definitions.toArray(new BuiltInQualityProfilesDefinition[0]));
 
     underTest.initialize();
 
@@ -227,7 +203,7 @@ public class BuiltInQProfileRepositoryImplTest {
       .containsExactly("goo");
   }
 
-  private static final class DummyProfileDefinition extends ProfileDefinition {
+  private static final class DummyProfileDefinition implements BuiltInQualityProfilesDefinition {
     private final String language;
     private final String name;
     private final boolean defaultProfile;
@@ -239,23 +215,15 @@ public class BuiltInQProfileRepositoryImplTest {
     }
 
     @Override
-    public RulesProfile createProfile(ValidationMessages validation) {
-      RulesProfile res = RulesProfile.create(name, language);
-      res.setDefaultProfile(defaultProfile);
-      return res;
-    }
-
-    String getLanguage() {
-      return language;
+    public void define(Context context) {
+      context.createBuiltInQualityProfile(name, language)
+        .setDefault(defaultProfile).done();
     }
 
     String getName() {
       return name;
     }
 
-    boolean isDefaultProfile() {
-      return defaultProfile;
-    }
   }
 
 }
