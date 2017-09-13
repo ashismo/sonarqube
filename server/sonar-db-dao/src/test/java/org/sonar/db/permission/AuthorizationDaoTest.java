@@ -19,6 +19,7 @@
  */
 package org.sonar.db.permission;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -41,6 +42,7 @@ import org.sonar.db.user.GroupDto;
 import org.sonar.db.user.UserDto;
 
 import static com.google.common.collect.Sets.newHashSet;
+import static java.util.Arrays.asList;
 import static java.util.Collections.singleton;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.sonar.core.permission.GlobalPermissions.QUALITY_GATE_ADMIN;
@@ -1005,4 +1007,69 @@ public class AuthorizationDaoTest {
     assertThat(logins).isEmpty();
   }
 
+  @Test
+  public void keepAuthorizedLoginsOnProject_return_correct_users_on_public_project() {
+    ComponentDto project = db.components().insertPublicProject(organization);
+
+    UserDto user1 = db.users().insertUser();
+
+    // admin with "direct" ADMIN role
+    UserDto admin1 = db.users().insertUser();
+    db.users().insertProjectPermissionOnUser(admin1, UserRole.ADMIN, project);
+
+    // admin2 with ADMIN role through group
+    UserDto admin2 = db.users().insertUser();
+    GroupDto adminGroup = db.users().insertGroup(organization, "ADMIN");
+    db.users().insertMember(adminGroup, admin2);
+    db.users().insertProjectPermissionOnGroup(adminGroup, UserRole.ADMIN, project);
+
+    assertThat(underTest.keepAuthorizedLoginsOnProject(dbSession, asList(user1.getLogin()), project.getRootUuid(), UserRole.USER))
+      .containsOnly(user1.getLogin());
+    assertThat(underTest.keepAuthorizedLoginsOnProject(dbSession, asList(user1.getLogin(), admin1.getLogin(), admin2.getLogin()), project.getRootUuid(), UserRole.USER))
+      .containsOnly(user1.getLogin(), admin1.getLogin(), admin2.getLogin());
+    assertThat(underTest.keepAuthorizedLoginsOnProject(dbSession, asList(user1.getLogin(), admin1.getLogin(), admin2.getLogin()), project.getRootUuid(), UserRole.ADMIN))
+      .containsOnly(admin1.getLogin(), admin2.getLogin());
+  }
+
+  @Test
+  public void keepAuthorizedLoginsOnProject_return_correct_users_on_private_project() {
+    ComponentDto project = db.components().insertPrivateProject(organization);
+
+    GroupDto userGroup = db.users().insertGroup(organization, "USERS");
+    GroupDto adminGroup = db.users().insertGroup(organization, "ADMIN");
+    db.users().insertProjectPermissionOnGroup(userGroup, UserRole.USER, project);
+    db.users().insertProjectPermissionOnGroup(adminGroup, UserRole.ADMIN, project);
+
+    // admin with "direct" ADMIN role
+    UserDto admin1 = db.users().insertUser();
+    db.users().insertProjectPermissionOnUser(admin1, UserRole.ADMIN, project);
+
+    // admin2 with ADMIN role through group
+    UserDto admin2 = db.users().insertUser();
+    db.users().insertMember(adminGroup, admin2);
+
+    // user1 with "direct" USER role
+    UserDto user1 = db.users().insertUser();
+    db.users().insertProjectPermissionOnUser(user1, UserRole.USER, project);
+
+    // user2 with USER role through group
+    UserDto user2 = db.users().insertUser();
+    db.users().insertMember(userGroup, user2);
+
+    // user without role
+    UserDto userWithNoRole = db.users().insertUser();
+
+    List<String> allLogins = Arrays.asList(admin1.getLogin(), admin2.getLogin(), user1.getLogin(), user2.getLogin(), userWithNoRole.getLogin());
+
+    assertThat(underTest.keepAuthorizedLoginsOnProject(dbSession, asList(userWithNoRole.getLogin()), project.getRootUuid(), UserRole.USER))
+      .isEmpty();
+    assertThat(underTest.keepAuthorizedLoginsOnProject(dbSession, asList(user1.getLogin()), project.getRootUuid(), UserRole.USER))
+      .containsOnly(user1.getLogin());
+
+    // Admin does not have the USER permission set
+    assertThat(underTest.keepAuthorizedLoginsOnProject(dbSession, allLogins, project.getRootUuid(), UserRole.USER))
+      .containsOnly(user1.getLogin(), user2.getLogin());
+    assertThat(underTest.keepAuthorizedLoginsOnProject(dbSession, allLogins, project.getRootUuid(), UserRole.ADMIN))
+      .containsOnly(admin1.getLogin(), admin2.getLogin());
+  }
 }
