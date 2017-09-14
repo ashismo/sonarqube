@@ -22,6 +22,10 @@
   padding: 15px 20px 0;
 }
 
+.boxed-group-header.with-bot-padding {
+  padding-bottom: 15px;
+}
+
 .boxed-group-header > h2 {
   display: inline-block;
   vertical-align: middle;
