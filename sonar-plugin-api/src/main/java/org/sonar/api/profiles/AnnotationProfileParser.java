@@ -27,13 +27,13 @@ import org.sonar.api.rules.RuleAnnotationUtils;
 import org.sonar.api.rules.RuleFinder;
 import org.sonar.api.rules.RulePriority;
 import org.sonar.api.server.ServerSide;
-import org.sonar.api.server.profile.BuiltInQualityProfilesDefinition;
+import org.sonar.api.server.profile.BuiltInQualityProfileAnnotationLoader;
 import org.sonar.api.utils.ValidationMessages;
 import org.sonar.check.BelongsToProfile;
 
 /**
  * @since 2.3
- * @deprecated since 6.6 use {@link BuiltInQualityProfilesDefinition}
+ * @deprecated since 6.6 use {@link BuiltInQualityProfileAnnotationLoader}
  */
 @ServerSide
 @ComputeEngineSide
