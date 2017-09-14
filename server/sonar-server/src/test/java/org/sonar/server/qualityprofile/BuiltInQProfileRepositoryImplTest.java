@@ -22,7 +22,6 @@ package org.sonar.server.qualityprofile;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Random;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -128,32 +127,6 @@ public class BuiltInQProfileRepositoryImplTest {
     expectedException.expectMessage("Several Quality profiles are flagged as default for the language foo: [foo1, foo2]");
 
     underTest.initialize();
-  }
-
-  @Test
-  public void initialize_creates_profile_as_default_even_if_only_one_profile_with_given_name_has_default_flag_true() {
-    String name = "doh";
-    boolean flag = new Random().nextBoolean();
-    BuiltInQProfileRepository underTest = new BuiltInQProfileRepositoryImpl(new Languages(FOO_LANGUAGE),
-      new DummyProfileDefinition("foo", name, flag), new DummyProfileDefinition("foo", name, !flag));
-
-    underTest.initialize();
-
-    assertThat(underTest.get())
-      .extracting(BuiltInQProfile::getLanguage, BuiltInQProfile::isDefault)
-      .containsExactly(tuple("foo", true));
-  }
-
-  @Test
-  public void initialize_creates_single_profile_if_several_profile_have_the_same_name_for_a_given_language() {
-    BuiltInQProfileRepository underTest = new BuiltInQProfileRepositoryImpl(new Languages(FOO_LANGUAGE),
-      new DummyProfileDefinition("foo", "aName", true), new DummyProfileDefinition("foo", "aName", true));
-
-    underTest.initialize();
-
-    assertThat(underTest.get())
-      .extracting(BuiltInQProfile::getLanguage, BuiltInQProfile::getName)
-      .containsExactlyInAnyOrder(tuple(FOO_LANGUAGE.getKey(), "aName"));
   }
 
   @Test

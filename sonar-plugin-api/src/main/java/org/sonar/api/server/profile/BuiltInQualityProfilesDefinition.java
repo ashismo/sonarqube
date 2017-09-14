@@ -19,6 +19,7 @@
  */
 package org.sonar.api.server.profile;
 
+import com.google.common.base.Preconditions;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -29,7 +30,6 @@ import java.util.Map;
 import javax.annotation.CheckForNull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
-import org.apache.commons.lang.StringUtils;
 import org.sonar.api.ExtensionPoint;
 import org.sonar.api.rule.RuleKey;
 import org.sonar.api.rule.Severity;
@@ -46,6 +46,9 @@ import static org.apache.commons.lang.StringUtils.isNotBlank;
 
 /**
  * Define built-in quality profiles which are automatically registered during SonarQube startup.
+ * We no more provide any facility to load profiles from XML file or annotated classes, but it should
+ * be straightforward to implement (adapt code of deprecated {@link org.sonar.api.profiles.AnnotationProfileParser} 
+ * or {@link org.sonar.api.profiles.XMLProfileParser} for example).
  *
  * @since 6.6
  */
@@ -70,8 +73,11 @@ public interface BuiltInQualityProfilesDefinition {
     }
 
     private void registerProfile(NewBuiltInQualityProfileImpl newProfile) {
-      BuiltInQualityProfile existing = profilesByLanguageAndName.computeIfAbsent(newProfile.language(), l -> new LinkedHashMap<>()).get(newProfile.name());
-      profilesByLanguageAndName.get(newProfile.language()).put(newProfile.name(), new BuiltInQualityProfileImpl(newProfile, existing));
+      String language = newProfile.language();
+      String name = newProfile.name();
+      Preconditions.checkArgument(!profilesByLanguageAndName.computeIfAbsent(language, l -> new LinkedHashMap<>()).containsKey(name),
+        "There is already a quality profile with name '%s' for language '%s'", name, language);
+      profilesByLanguageAndName.get(language).put(name, new BuiltInQualityProfileImpl(newProfile));
     }
 
     public Map<String, Map<String, BuiltInQualityProfile>> profilesByLanguageAndName() {
@@ -197,26 +203,14 @@ public interface BuiltInQualityProfilesDefinition {
     private final boolean isDefault;
     private final Map<RuleKey, BuiltInActiveRule> activeRulesByKey;
 
-    private BuiltInQualityProfileImpl(NewBuiltInQualityProfileImpl newProfile, @Nullable BuiltInQualityProfile mergeInto) {
-      this.name = newProfile.name;
-      this.language = newProfile.language;
-      this.isDefault = newProfile.isDefault || (mergeInto != null && mergeInto.isDefault());
+    private BuiltInQualityProfileImpl(NewBuiltInQualityProfileImpl newProfile) {
+      this.name = newProfile.name();
+      this.language = newProfile.language();
+      this.isDefault = newProfile.isDefault();
 
       Map<RuleKey, BuiltInActiveRule> ruleBuilder = new HashMap<>();
-      if (mergeInto != null) {
-        if (!StringUtils.equals(newProfile.language, mergeInto.language()) || !StringUtils.equals(newProfile.name, mergeInto.name())) {
-          throw new IllegalArgumentException(format("Bug - language and name of the repositories to be merged should be the sames: %s and %s", newProfile, mergeInto));
-        }
-        for (BuiltInActiveRule rule : mergeInto.rules()) {
-          RuleKey ruleKey = RuleKey.of(rule.repoKey(), rule.ruleKey);
-          if (ruleBuilder.containsKey(ruleKey)) {
-            LOG.warn("The rule '{}' is activated several times in built-in quality profile '{}'", ruleKey, mergeInto.name());
-          }
-          ruleBuilder.put(ruleKey, rule);
-        }
-      }
-      for (NewBuiltInActiveRule newActiveRule : newProfile.newActiveRules.values()) {
-        ruleBuilder.put(RuleKey.of(newActiveRule.repoKey, newActiveRule.ruleKey), new BuiltInActiveRule(this, newActiveRule));
+      for (NewBuiltInActiveRule newActiveRule : newProfile.activeRules()) {
+        ruleBuilder.put(RuleKey.of(newActiveRule.repoKey, newActiveRule.ruleKey), new BuiltInActiveRule(newActiveRule));
       }
       this.activeRulesByKey = unmodifiableMap(ruleBuilder);
     }
@@ -271,6 +265,7 @@ public interface BuiltInQualityProfilesDefinition {
       StringBuilder sb = new StringBuilder("BuiltInQualityProfile{");
       sb.append("name='").append(name).append('\'');
       sb.append(", language='").append(language).append('\'');
+      sb.append(", default='").append(isDefault).append('\'');
       sb.append('}');
       return sb.toString();
     }
@@ -331,26 +326,20 @@ public interface BuiltInQualityProfilesDefinition {
    */
   @Immutable
   class BuiltInActiveRule {
-    private final BuiltInQualityProfile profile;
     private final String repoKey;
     private final String ruleKey;
     private final String overridenSeverity;
     private final Map<String, OverridenParam> overridenParams;
 
-    private BuiltInActiveRule(BuiltInQualityProfile profile, NewBuiltInActiveRule newBuiltInActiveRule) {
-      this.profile = profile;
-      this.repoKey = newBuiltInActiveRule.repoKey;
-      this.ruleKey = newBuiltInActiveRule.ruleKey;
+    private BuiltInActiveRule(NewBuiltInActiveRule newBuiltInActiveRule) {
+      this.repoKey = newBuiltInActiveRule.repoKey();
+      this.ruleKey = newBuiltInActiveRule.ruleKey();
       this.overridenSeverity = newBuiltInActiveRule.overridenSeverity;
       Map<String, OverridenParam> paramsBuilder = new HashMap<>();
-      for (NewOverridenParam newParam : newBuiltInActiveRule.paramsByKey.values()) {
+      for (NewOverridenParam newParam : newBuiltInActiveRule.overridenParams()) {
         paramsBuilder.put(newParam.key, new OverridenParam(newParam));
       }
       this.overridenParams = Collections.unmodifiableMap(paramsBuilder);
-    }
-
-    public BuiltInQualityProfile profile() {
-      return profile;
     }
 
     public String repoKey() {
@@ -372,25 +361,6 @@ public interface BuiltInQualityProfilesDefinition {
 
     public List<OverridenParam> overridenParams() {
       return unmodifiableList(new ArrayList<>(overridenParams.values()));
-    }
-
-    @Override
-    public boolean equals(Object o) {
-      if (this == o) {
-        return true;
-      }
-      if (o == null || getClass() != o.getClass()) {
-        return false;
-      }
-      BuiltInActiveRule other = (BuiltInActiveRule) o;
-      return ruleKey.equals(other.ruleKey) && repoKey.equals(other.repoKey);
-    }
-
-    @Override
-    public int hashCode() {
-      int result = repoKey.hashCode();
-      result = 31 * result + ruleKey.hashCode();
-      return result;
     }
 
     @Override
@@ -426,7 +396,7 @@ public interface BuiltInQualityProfilesDefinition {
     private final String overridenValue;
 
     private OverridenParam(NewOverridenParam newOverridenParam) {
-      this.key = newOverridenParam.key;
+      this.key = newOverridenParam.key();
       this.overridenValue = newOverridenParam.overridenValue;
     }
 
@@ -439,22 +409,6 @@ public interface BuiltInQualityProfilesDefinition {
       return overridenValue;
     }
 
-    @Override
-    public boolean equals(Object o) {
-      if (this == o) {
-        return true;
-      }
-      if (o == null || getClass() != o.getClass()) {
-        return false;
-      }
-      OverridenParam that = (OverridenParam) o;
-      return key.equals(that.key);
-    }
-
-    @Override
-    public int hashCode() {
-      return key.hashCode();
-    }
   }
 
   /**
