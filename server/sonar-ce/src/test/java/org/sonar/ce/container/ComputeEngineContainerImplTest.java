@@ -129,7 +129,7 @@ public class ComputeEngineContainerImplTest {
           + 4 // content of CeHttpModule
           + 3 // content of CeTaskCommonsModule
           + 4 // content of ProjectAnalysisTaskModule
-          + 6 // content of CeTaskProcessorModule
+          + 7 // content of CeTaskProcessorModule
           + 4 // content of ReportAnalysisFailureNotificationModule
           + 3 // CeCleaningModule + its content
           + 1 // CeDistributedInformation

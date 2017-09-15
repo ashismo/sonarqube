@@ -21,6 +21,7 @@ package org.sonar.ce.taskprocessor;
 
 import org.junit.Test;
 import org.picocontainer.ComponentAdapter;
+import org.sonar.ce.notification.ReportAnalysisFailureNotificationExecutionListener;
 import org.sonar.core.platform.ComponentContainer;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -38,5 +39,17 @@ public class CeTaskProcessorModuleTest {
       .stream()
       .map(ComponentAdapter::getComponentImplementation))
         .contains(CeLoggingWorkerExecutionListener.class);
+  }
+
+  @Test
+  public void defines_ExecutionListener_for_report_processing_failure_notifications() {
+    ComponentContainer container = new ComponentContainer();
+
+    underTest.configure(container);
+
+    assertThat(container.getPicoContainer().getComponentAdapters(CeWorker.ExecutionListener.class)
+      .stream()
+      .map(ComponentAdapter::getComponentImplementation))
+        .contains(ReportAnalysisFailureNotificationExecutionListener.class);
   }
 }
