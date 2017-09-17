@@ -117,13 +117,13 @@
       <artifactId>hamcrest-all</artifactId>
       <scope>test</scope>
     </dependency>
-    <dependency>
+    <!-- <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>sonar-plugin-api</artifactId>
       <type>test-jar</type>
       <scope>test</scope>
       <version>${project.version}</version>
-    </dependency>
+    </dependency> -->
     <dependency>
       <groupId>org.eclipse.jetty</groupId>
       <artifactId>jetty-server</artifactId>

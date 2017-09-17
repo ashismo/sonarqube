@@ -69,13 +69,13 @@
       <artifactId>sonar-testing-harness</artifactId>
       <scope>test</scope>
     </dependency>
-    <dependency>
+   <!--  <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>sonar-db-core</artifactId>
       <version>${project.version}</version>
       <type>test-jar</type>
       <scope>test</scope>
-    </dependency>
+    </dependency> -->
     <dependency>
       <groupId>org.dbunit</groupId>
       <artifactId>dbunit</artifactId>
